@@ -10,9 +10,18 @@ import UIKit
 
 class ViewController: UITableViewController {
     
-    let cellID = "cellID"
+    // MARK: - Global variables
     
-    let twoDimentionalArray = [["Amy", "Bill", "Zack", "Steve", "Jack", "Jill", "Mary"], ["Carl", "Chris", "Christina", "Cameron"], ["David", "Dan"], ["Patric", "Patty"]]
+    let cellID = "cellID"
+    var twoDimentionalArray = [
+        ["Amy", "Bill", "Zack", "Steve", "Jack", "Jill", "Mary"].map { Contact(name: $0, isFavourite: false) },
+        ["Carl", "Chris", "Christina", "Cameron"].map { Contact(name: $0, isFavourite: false) },
+        ["David", "Dan"].map { Contact(name: $0, isFavourite: false) },
+        ["Patric", "Patty"].map { Contact(name: $0, isFavourite: false) }
+        ].map { ExpandableNames(isExpanded: true, contacts: $0) }
+    var showIndexPaths = false
+    
+    // MARK: - Life cicle
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -20,32 +29,33 @@ class ViewController: UITableViewController {
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Show IndexPath", style: .plain, target: self, action: #selector(handleShowIndexPath))
         navigationItem.title = "Contacts"
         navigationController?.navigationBar.prefersLargeTitles = true
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: cellID)
+        tableView.register(ContactCell.self, forCellReuseIdentifier: cellID)
     }
     
-    @objc func handleShowIndexPath() {
-        var pairIndicesArray = [IndexPath]()
-        var oddIndicesArray = [IndexPath]()
-        
-        for section in twoDimentionalArray.indices {
-            for row in twoDimentionalArray[section].indices {
-                if row % 2 == 0 {
-                    pairIndicesArray.append(IndexPath(row: row, section: section))
-                } else {
-                    oddIndicesArray.append(IndexPath(row: row, section: section))
-                }
-            }
-        }
-        
-        tableView.reloadRows(at: pairIndicesArray, with: .left)
-        tableView.reloadRows(at: oddIndicesArray, with: .right)
-    }
+    // MARK: - TableView delegate methods
     
     override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
         let label = UILabel()
         label.text = "Header"
-        label.backgroundColor = .lightGray
-        return label
+        label.backgroundColor = .orange
+        label.textAlignment = .center
+        let button = UIButton(type: .system)
+        button.setTitle("Collapse", for: .normal)
+        button.backgroundColor = .orange
+        button.setTitleColor(.black, for: .normal)
+        button.titleLabel?.font = UIFont.boldSystemFont(ofSize: 14)
+        button.addTarget(self, action: #selector(handelExpandClose), for: .touchUpInside)
+        button.tag = section
+        let stackView = UIStackView()
+        stackView.distribution = .fillProportionally
+        stackView.axis = .horizontal
+        stackView.addArrangedSubview(label)
+        stackView.addArrangedSubview(button)
+        return stackView
+    }
+    
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        return 36
     }
     
     override func numberOfSections(in tableView: UITableView) -> Int {
@@ -53,15 +63,82 @@ class ViewController: UITableViewController {
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return twoDimentionalArray[section].count
+        if twoDimentionalArray[section].isExpanded {
+            return twoDimentionalArray[section].contacts.count
+        } else {
+            return 0
+        }
     }
     
+    // MARK: - TableView data sourse methods
+    
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: cellID, for: indexPath)
-        let name = twoDimentionalArray[indexPath.section][indexPath.row]
+        let cell = tableView.dequeueReusableCell(withIdentifier: cellID, for: indexPath) as! ContactCell
+        cell.link = self
+        let contact = twoDimentionalArray[indexPath.section].contacts[indexPath.row]
+        var navBarButtonTitle = String()
         
-        cell.textLabel?.text = "\(name) Section: \(indexPath.section) Row: \(indexPath.row)"
+        cell.accessoryView?.tintColor = contact.isFavourite ? UIColor.red : .lightGray
         
+        if showIndexPaths {
+            cell.textLabel?.text = "\(contact.name) Section: \(indexPath.section) Row: \(indexPath.row)"
+            navBarButtonTitle = "Hide IndexPath"
+        } else {
+            cell.textLabel?.text = contact.name
+            navBarButtonTitle = "Show IndexPath"
+        }
+        
+        navigationItem.rightBarButtonItem?.title = navBarButtonTitle
         return cell
+    }
+    
+    // MARK: - Custom methods
+    
+    @objc func handleShowIndexPath() {
+        var pairIndicesArray = [IndexPath]()
+        var oddIndicesArray = [IndexPath]()
+        for section in twoDimentionalArray.indices {
+            if twoDimentionalArray[section].isExpanded {
+                for row in twoDimentionalArray[section].contacts.indices {
+                    if row % 2 == 0 {
+                        pairIndicesArray.append(IndexPath(row: row, section: section))
+                    } else {
+                        oddIndicesArray.append(IndexPath(row: row, section: section))
+                    }
+                }
+            }
+        }
+        
+        showIndexPaths = !showIndexPaths
+        
+        tableView.reloadRows(at: pairIndicesArray, with: .left)
+        tableView.reloadRows(at: oddIndicesArray, with: .right)
+    }
+    
+    @objc func handelExpandClose(button: UIButton) {
+        let section = button.tag
+        var indexPaths = [IndexPath]()
+        
+        for row in twoDimentionalArray[section].contacts.indices {
+            let indexPath = IndexPath(row: row, section: section)
+            indexPaths.append(indexPath)
+        }
+        
+        let isExpanded = twoDimentionalArray[section].isExpanded
+        twoDimentionalArray[section].isExpanded = !isExpanded
+        button.setTitle(isExpanded ? "Expand" : "Collapse", for: .normal)
+        
+        if twoDimentionalArray[section].isExpanded {
+            tableView.insertRows(at: indexPaths, with: .fade)
+        } else {
+            tableView.deleteRows(at: indexPaths, with: .fade)
+        }
+    }
+    
+    func someMethodWantToCall(cell: UITableViewCell) {
+        guard let indexPathTapped = tableView.indexPath(for: cell) else { return }
+        let contact = twoDimentionalArray[indexPathTapped.section].contacts[indexPathTapped.row]
+        twoDimentionalArray[indexPathTapped.section].contacts[indexPathTapped.row].isFavourite = !contact.isFavourite
+        cell.accessoryView?.tintColor = contact.isFavourite ? UIColor.lightGray : .red
     }
 }
